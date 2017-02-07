@@ -1,4 +1,5 @@
 import json
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import itertools
@@ -93,35 +94,8 @@ def load_proximity_chunks_as_json_objects(file_object, log_version=None):
 
     return batched_sample_data
 
-
-def sample2data(input_file_path, datetime_index=True, resample=True, log_version=None):
-
-    with open(input_file_path,'r') as input_file:
-        raw_data = input_file.readlines() #This is a list of strings
-        meeting_metadata = json.loads(raw_data[0]) #Convert the header string into a json object
-        if 'data' in meeting_metadata:
-            if 'log_version' in meeting_metadata['data']:
-                log_version = meeting_metadata['data']['log_version']
-        else:
-            log_version = '1.0'
-
-    if log_version == '1.0':
-
-        batched_sample_data = map(json.loads,raw_data[1:]) #Convert the raw sample data into a json object
-
-    elif log_version == '2.0':
-
-        batched_sample_data = []
-        for row in raw_data[1:]:
-            data = json.loads(row)
-            if data['type'] == 'audio received':
-                batched_sample_data.append(data['data'])
-
-    else:
-        raise Exception('file log version was not set and cannot be identified')
-
+def batched_sample_to_data(batched_sample_data, datetime_index=True, resample=True, log_version="2.0"):
     sample_data = []
-
     for j in range(len(batched_sample_data)):
         batch = {}
         batch.update(batched_sample_data[j]) #Create a deep copy of the jth batch of samples
@@ -163,12 +137,47 @@ def sample2data(input_file_path, datetime_index=True, resample=True, log_version
 
     if(resample):
         # Optional: Add the meeting metadata to the dataframe
-        df_resampled.metadata = meeting_metadata
+        # df_resampled.metadata = meeting_metadata
         return df_resampled
     else:
         # Optional: Add the meeting metadata to the dataframe
-        df_sample_data.metadata = meeting_metadata
+        # df_sample_data.metadata = meeting_metadata
         return df_sample_data
+
+def json_sample2data(json_data, datetime_index=True, resample=True):
+    """
+    Convert json chunks to pandas DataFrame
+    """
+    return batched_sample_to_data(json_data, datetime_index, resample)
+
+def sample2data(input_file_path, datetime_index=True, resample=True, log_version=None):
+
+    # this looks very similar to load_audio_chunks_...
+    with open(input_file_path,'r') as input_file:
+        raw_data = input_file.readlines() #This is a list of strings
+        meeting_metadata = json.loads(raw_data[0]) #Convert the header string into a json object
+        if 'data' in meeting_metadata:
+            if 'log_version' in meeting_metadata['data']:
+                log_version = meeting_metadata['data']['log_version']
+        else:
+            log_version = '1.0'
+
+    if log_version == '1.0':
+
+        batched_sample_data = map(json.loads,raw_data[1:]) #Convert the raw sample data into a json object
+
+    elif log_version == '2.0':
+
+        batched_sample_data = []
+        for row in raw_data[1:]:
+            data = json.loads(row)
+            if data['type'] == 'audio received':
+                batched_sample_data.append(data['data'])
+
+    else:
+        raise Exception('file log version was not set and cannot be identified')
+
+    return batched_sample_to_data(batched_sample_data, datetime_index, resample, log_version)
 
 
 def is_speaking(df_meeting, sampleDelay = 50):
